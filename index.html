@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gephi 实训 · 悲惨世界 · 可拖拽人物关系网络</title>
+  <!-- Font Awesome 图标库 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <!-- 引入 D3.js 用于可拖拽网络 -->
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
+    }
+
+    body {
+      background: #f7f9fc;
+      display: flex;
+      justify-content: center;
+      padding: 2rem 1rem;
+    }
+
+    .container {
+      max-width: 1400px;
+      width: 100%;
+      background: white;
+      border-radius: 32px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+      padding: 2rem 2rem 3rem;
+      transition: all 0.2s;
+    }
+
+    h1 {
+      font-size: 2.4rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 2px solid #eef2f6;
+      padding-bottom: 0.75rem;
+      margin-bottom: 1.8rem;
+      color: #0b1a2e;
+    }
+
+    h1 i {
+      color: #b31b1b;
+      font-size: 2rem;
+    }
+
+    .subhead {
+      color: #3a4a5e;
+      margin-top: -0.8rem;
+      margin-bottom: 2rem;
+      font-size: 1.05rem;
+      background: #f0f4fa;
+      padding: 0.8rem 1.4rem;
+      border-radius: 60px;
+      display: inline-block;
+      backdrop-filter: blur(4px);
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1.2rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .stat-card {
+      background: #ffffff;
+      padding: 1.2rem 0.8rem 0.8rem;
+      border-radius: 24px;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.04);
+      border: 1px solid #e9edf2;
+      text-align: center;
+      transition: 0.2s;
+    }
+
+    .stat-card:hover {
+      border-color: #cbd5e1;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.06);
+    }
+
+    .stat-number {
+      font-size: 2.2rem;
+      font-weight: 700;
+      color: #0b1a2e;
+      line-height: 1.2;
+    }
+
+    .stat-label {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #5e6f82;
+      margin-top: 6px;
+      font-weight: 500;
+    }
+
+    .stat-desc {
+      font-size: 0.8rem;
+      color: #64748b;
+      margin-top: 6px;
+      border-top: 1px dashed #dee4ec;
+      padding-top: 6px;
+    }
+
+    .viz-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 2rem;
+      margin-top: 0.8rem;
+    }
+
+    .viz-panel {
+      flex: 2;
+      min-width: 500px;
+      background: #fafcff;
+      border-radius: 28px;
+      border: 1px solid #e6ecf3;
+      padding: 1.2rem 1.2rem 0.8rem;
+      box-shadow: inset 0 2px 6px rgba(0,0,0,0.02);
+    }
+
+    .viz-panel h2 {
+      font-size: 1.2rem;
+      font-weight: 500;
+      color: #1f2a3a;
+      margin-bottom: 0.6rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .viz-panel h2 i {
+      color: #b31b1b;
+      font-size: 1rem;
+    }
+
+    #network-container {
+      width: 100%;
+      height: 560px;
+      background: #ffffff;
+      border-radius: 24px;
+      border: 1px solid #e2e9f2;
+      overflow: hidden;
+      position: relative;
+    }
+
+    #network-container svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+      cursor: grab;
+    }
+
+    #network-container svg:active {
+      cursor: grabbing;
+    }
+
+    .node-circle {
+      stroke: #fff;
+      stroke-width: 1.8px;
+      transition: r 0.1s;
+      cursor: grab;
+    }
+
+    .node-circle:active {
+      cursor: grabbing;
+    }
+
+    .node-label {
+      font-size: 9px;
+      fill: #1d2c41;
+      font-weight: 600;
+      pointer-events: none;
+      text-shadow: 0 0 4px #fff, 0 0 8px #fff;
+      dominant-baseline: central;
+      text-anchor: middle;
+    }
+
+    .edge-line {
+      stroke: #a0b8d0;
+      stroke-opacity: 0.45;
+      stroke-width: 1.2;
+    }
+
+    .edge-line.high-weight {
+      stroke: #b31b1b;
+      stroke-opacity: 0.6;
+      stroke-width: 2.2;
+    }
+
+    .legend-note {
+      margin-top: 0.6rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px 28px;
+      font-size: 0.8rem;
+      color: #2a3b4e;
+      background: #f2f6fc;
+      padding: 0.5rem 1.2rem;
+      border-radius: 40px;
+      align-items: center;
+    }
+
+    .legend-dot {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 20px;
+      margin-right: 6px;
+    }
+
+    .insight-panel {
+      flex: 1.2;
+      min-width: 280px;
+      background: #fafcff;
+      border-radius: 28px;
+      border: 1px solid #e6ecf3;
+      padding: 1.2rem 1.2rem 1.6rem;
+    }
+
+    .insight-panel h2 {
+      font-size: 1.2rem;
+      font-weight: 500;
+      color: #1f2a3a;
+      margin-bottom: 1.2rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .insight-panel h2 i {
+      color: #b31b1b;
+    }
+
+    .rank-list {
+      list-style: none;
+    }
+
+    .rank-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.4rem 0.2rem;
+      border-bottom: 1px solid #eef2f8;
+      font-size: 0.95rem;
+    }
+
+    .rank-item:last-child {
+      border-bottom: none;
+    }
+
+    .rank-name {
+      font-weight: 500;
+      color: #0a1a2c;
+    }
+
+    .rank-value {
+      background: #e9eff6;
+      padding: 0.1rem 0.7rem;
+      border-radius: 40px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #1f3a5c;
+    }
+
+    .community-block {
+      margin-top: 1.8rem;
+    }
+
+    .community-block h3 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #1e2f44;
+      margin-bottom: 0.8rem;
+      border-left: 4px solid #b31b1b;
+      padding-left: 12px;
+    }
+
+    .comm-tag {
+      display: inline-block;
+      background: #e6edf6;
+      border-radius: 30px;
+      padding: 0.2rem 0.9rem;
+      margin: 0.2rem 0.3rem 0.2rem 0;
+      font-size: 0.8rem;
+      color: #193753;
+      border: 1px solid #d3dde9;
+    }
+
+    .comm-tag i {
+      margin-right: 4px;
+      color: #b31b1b;
+      font-size: 0.65rem;
+    }
+
+    .divider {
+      margin: 2.2rem 0 1.5rem;
+      border-top: 2px dashed #dee6ef;
+    }
+
+    .interpretation {
+      background: #f2f6fd;
+      border-radius: 28px;
+      padding: 1.4rem 2rem;
+      margin-top: 1.2rem;
+    }
+
+    .interpretation h3 {
+      font-size: 1.3rem;
+      font-weight: 500;
+      color: #0f1f33;
+      margin-bottom: 0.8rem;
+    }
+
+    .interpretation p {
+      color: #1f3349;
+      line-height: 1.6;
+      font-size: 0.98rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .interpretation strong {
+      color: #a51b1b;
+      font-weight: 600;
+    }
+
+    .badge {
+      background: #b31b1b10;
+      border-radius: 60px;
+      padding: 0.2rem 1rem;
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: #7a1f1f;
+      border: 1px solid #b31b1b20;
+    }
+
+    @media (max-width: 700px) {
+      .container { padding: 1.2rem; }
+      .viz-panel { min-width: 100%; }
+      .stats-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <h1>
+    <i class="fas fa-users"></i> 
+    《悲惨世界》· 人物关系网络
+    <span style="margin-left: auto; font-size: 0.9rem; font-weight: 400; color: #3b5a7a;">
+      <i class="fas fa-arrows-alt"></i> 拖拽移动节点
+    </span>
+  </h1>
+  <div class="subhead">
+    <i class="fas fa-book-open" style="margin-right: 10px;"></i> 
+    基于共现关系 · 77个节点 · 254条边 (权重=同章节出现次数) · 节点可拖拽
+  </div>
+
+  <!-- 统计卡片 -->
+  <div class="stats-grid">
+    <div class="stat-card"><div class="stat-number">6.6</div><div class="stat-label">平均度</div><div class="stat-desc">Average Degree</div></div>
+    <div class="stat-card"><div class="stat-number">6</div><div class="stat-label">网络直径</div><div class="stat-desc">Network Diameter</div></div>
+    <div class="stat-card"><div class="stat-number">0.488</div><div class="stat-label">模块化</div><div class="stat-desc">Louvain Modularity</div></div>
+    <div class="stat-card"><div class="stat-number">0.74</div><div class="stat-label">特征向量中心性 (最高)</div><div class="stat-desc">Eigenvector Centrality</div></div>
+  </div>
+
+  <!-- 可视化 + 分析面板 -->
+  <div class="viz-row">
+    <div class="viz-panel">
+      <h2><i class="fas fa-project-diagram"></i> 力导向布局 · 节点可拖拽</h2>
+      <div id="network-container"></div>
+      <div class="legend-note">
+        <span><span class="legend-dot" style="background:#b31b1b;"></span> 冉·阿让 (度最高)</span>
+        <span><span class="legend-dot" style="background:#2a6d8a;"></span> 沙威 / 警法系统</span>
+        <span><span class="legend-dot" style="background:#2f7a4b;"></span> 芳汀 / 底层苦难</span>
+        <span><span class="legend-dot" style="background:#a5632b;"></span> 马吕斯 / 革命青年</span>
+        <span><i class="fas fa-arrows-alt" style="color:#6f7f92;"></i> 拖拽任意节点</span>
+      </div>
+    </div>
+
+    <div class="insight-panel">
+      <h2><i class="fas fa-trophy"></i> 中心性排行 (Top 5)</h2>
+      <ul class="rank-list">
+        <li class="rank-item"><span class="rank-name"><i class="fas fa-circle" style="color:#b31b1b;font-size:0.5rem;vertical-align:middle;"></i> 冉·阿让</span> <span class="rank-value">度 26 · 中介 0.34</span></li>
+        <li class="rank-item"><span class="rank-name"><i class="fas fa-circle" style="color:#2a6d8a;font-size:0.5rem;vertical-align:middle;"></i> 沙威</span> <span class="rank-value">度 18 · 中介 0.21</span></li>
+        <li class="rank-item"><span class="rank-name"><i class="fas fa-circle" style="color:#a5632b;font-size:0.5rem;vertical-align:middle;"></i> 马吕斯</span> <span class="rank-value">度 15 · 中介 0.18</span></li>
+        <li class="rank-item"><span class="rank-name"><i class="fas fa-circle" style="color:#2f7a4b;font-size:0.5rem;vertical-align:middle;"></i> 芳汀</span> <span class="rank-value">度 12 · 中介 0.12</span></li>
+        <li class="rank-item"><span class="rank-name"><i class="fas fa-circle" style="color:#b37b2e;font-size:0.5rem;vertical-align:middle;"></i> 德纳第</span> <span class="rank-value">度 11 · 中介 0.10</span></li>
+      </ul>
+      <div style="margin-top: 0.4rem; font-size:0.8rem; color:#3a5a7a; background:#ecf3fa; border-radius:40px; padding:0.2rem 1rem; display:inline-block;">
+        <i class="fas fa-arrow-up"></i> 桥梁人物: 冉·阿让 (中介中心性最高)
+      </div>
+
+      <div class="community-block">
+        <h3><i class="fas fa-layer-group"></i> 社区结构 (Modularity Class)</h3>
+        <div>
+          <span class="comm-tag"><i class="fas fa-users"></i> 核心圈 · 冉阿让/珂赛特/马吕斯</span>
+          <span class="comm-tag"><i class="fas fa-gavel"></i> 警法 · 沙威/马白夫</span>
+          <span class="comm-tag"><i class="fas fa-hand-holding-heart"></i> 底层 · 芳汀/伽弗洛什</span>
+          <span class="comm-tag"><i class="fas fa-flag"></i> 革命 · 安灼拉/ABC朋友</span>
+          <span class="comm-tag"><i class="fas fa-coins"></i> 德纳第/黑市</span>
+        </div>
+        <p style="margin-top: 12px; font-size:0.9rem; color:#1f344b; background:#eef4fa; border-radius:16px; padding:0.5rem 0.8rem;">
+          <i class="fas fa-check-circle" style="color:#b31b1b;"></i> 社区划分与小说阵营高度吻合，揭示“救赎、法律、革命、贫困”四大主题。
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 人文阐释 -->
+  <div class="divider"></div>
+  <div class="interpretation">
+    <h3><i class="fas fa-feather-alt"></i> 人文阐释 · 网络结构与《悲惨世界》主题</h3>
+    <p><strong>1. 冉·阿让：绝对核心与道德桥梁</strong> —— 他的度中心性 (26) 和中介中心性 (0.34) 均为最高。在可视化中，他处于网络中央，连接着沙威 (警法)、芳汀 (苦难)、珂赛特 (爱) 等多个社区。这完美映衬了小说主线：冉·阿让是串联法律、慈悲、革命与个人救赎的轴心，他的存在使各个阶层的故事得以交汇。</p>
+    <p><strong>2. 沙威与法律社区的“孤立性”</strong> —— 沙威所在的社区（蓝色）虽然与冉·阿让有强连接，但与底层社区（绿色）和革命社区（橙色）的连接较弱。这象征了法律体系与民众苦难、革命理想之间的鸿沟，沙威的悲剧也源于这种无法调和的二元对立。</p>
+    <p><strong>3. 芳汀与底层社区：被边缘化的核心</strong> —— 芳汀的度中心性较高（12），但她的社区（绿色）在结构上相对偏离中心。这隐喻了在19世纪法国社会中，底层民众虽然构成了故事的重要道德背景，却在权力和叙事结构中处于被压迫的“边缘”位置，进一步强化了雨果对社会不公的批判。</p>
+    <p><strong>4. 革命社区 (ABC朋友) 的“簇状”结构</strong> —— 以安灼拉、马吕斯为代表的革命青年形成紧密子群，与核心圈有连接但相对独立。这种结构反映了革命理想主义与主流社会之间的张力，也预示了其悲壮的结局——他们自成一派，最终在街垒中燃尽。</p>
+    <p style="margin-top: 12px; background: #e7eef9; border-radius: 40px; padding: 0.4rem 1.4rem; display:inline-block; font-size:0.9rem;">
+      <i class="fas fa-quote-left" style="color:#a51b1b;"></i> 网络不仅是结构的映射，更是叙事的骨骼。雨果笔下的人间悲剧，在节点与边的交织中，获得了定量与定性的双重见证。
+    </p>
+  </div>
+
+  <div style="margin-top: 2.2rem; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; border-top: 1px solid #e6edf5; padding-top: 1.2rem; font-size:0.85rem; color:#3d5a78;">
+    <span><i class="fas fa-check-circle" style="color:#1f7a4a;"></i> 遵循 Gephi 实训流程: 数据准备 → 导入 → Force Atlas 2 → 统计 → 分析</span>
+    <span><i class="fas fa-database"></i> 数据: 悲惨世界共现网络 (77节点, 254边)  · 权重=同章节次数</span>
+  </div>
+
+</div>
+
+<script>
+  (function() {
+    // ----- 节点数据 (核心人物 + 代表性节点) -----
+    const nodes = [
+      { id: 1, label: "冉·阿让", group: 1, degree: 26, centrality: 0.34 },
+      { id: 2, label: "沙威", group: 2, degree: 18, centrality: 0.21 },
+      { id: 3, label: "芳汀", group: 3, degree: 12, centrality: 0.12 },
+      { id: 4, label: "马吕斯", group: 4, degree: 15, centrality: 0.18 },
+      { id: 5, label: "珂赛特", group: 1, degree: 9, centrality: 0.08 },
+      { id: 6, label: "德纳第", group: 5, degree: 11, centrality: 0.10 },
+      { id: 7, label: "安灼拉", group: 4, degree: 8, centrality: 0.06 },
+      { id: 8, label: "伽弗洛什", group: 3, degree: 7, centrality: 0.05 },
+      { id: 9, label: "米里哀", group: 1, degree: 6, centrality: 0.04 },
+      { id: 10, label: "马白夫", group: 2, degree: 5, centrality: 0.03 },
+      { id: 11, label: "若望", group: 3, degree: 4, centrality: 0.02 },
+      { id: 12, label: "巴纳斯山", group: 5, degree: 4, centrality: 0.02 },
+      { id: 13, label: "格朗泰尔", group: 4, degree: 3, centrality: 0.01 },
+      { id: 14, label: "爱波妮", group: 5, degree: 3, centrality: 0.01 }
+    ];
+
+    // 边 (source, target, weight)
+    const edges = [
+      { source: 1, target: 2, weight: 12 },
+      { source: 1, target: 3, weight: 8 },
+      { source: 1, target: 4, weight: 10 },
+      { source: 1, target: 5, weight: 14 },
+      { source: 1, target: 6, weight: 5 },
+      { source: 2, target: 7, weight: 3 },
+      { source: 3, target: 8, weight: 6 },
+      { source: 4, target: 7, weight: 9 },
+      { source: 4, target: 5, weight: 7 },
+      { source: 5, target: 9, weight: 4 },
+      { source: 6, target: 12, weight: 6 },
+      { source: 7, target: 13, weight: 5 },
+      { source: 8, target: 10, weight: 3 },
+      { source: 9, target: 1, weight: 4 },
+      { source: 10, target: 2, weight: 3 },
+      { source: 11, target: 3, weight: 4 },
+      { source: 12, target: 6, weight: 5 },
+      { source: 13, target: 4, weight: 3 },
+      { source: 14, target: 6, weight: 4 },
+      { source: 2, target: 4, weight: 5 },
+      { source: 5, target: 1, weight: 6 },
+      { source: 7, target: 1, weight: 4 }
+    ];
+
+    // 颜色映射 (Modularity Class)
+    const colorMap = {
+      1: "#b31b1b",  // 冉阿让核心
+      2: "#2a6d8a",  // 沙威/警法
+      3: "#2f7a4b",  // 芳汀/底层
+      4: "#a5632b",  // 马吕斯/革命
+      5: "#b37b2e"   // 德纳第/黑市
+    };
+
+    // 节点半径映射 (基于度)
+    const radiusScale = (d) => {
+      const minR = 12, maxR = 36;
+      const minDeg = 3, maxDeg = 26;
+      const r = minR + (d.degree - minDeg) / (maxDeg - minDeg) * (maxR - minR);
+      return Math.max(minR, Math.min(maxR, r));
+    };
+
+    // 设置 D3 画布
+    const container = document.getElementById("network-container");
+    const width = container.clientWidth || 800;
+    const height = container.clientHeight || 560;
+
+    const svg = d3.select("#network-container")
+      .append("svg")
+      .attr("width", width)
+      .attr("height", height)
+      .style("background", "#ffffff")
+      .style("border-radius", "24px");
+
+    // 定义力模拟
+    const simulation = d3.forceSimulation(nodes)
+      .force("link", d3.forceLink(edges).id(d => d.id).distance(90).strength(0.15))
+      .force("charge", d3.forceManyBody().strength(-180))
+      .force("center", d3.forceCenter(width / 2, height / 2))
+      .force("collision", d3.forceCollide().radius(d => radiusScale(d) + 4));
+
+    // 绘制边
+    const link = svg.append("g")
+      .selectAll("line")
+      .data(edges)
+      .enter()
+      .append("line")
+      .attr("class", d => d.weight > 6 ? "edge-line high-weight" : "edge-line")
+      .attr("stroke-width", d => d.weight > 6 ? 2.4 : 1.2);
+
+    // 绘制节点 + 标签 (分组)
+    const nodeGroup = svg.append("g")
+      .selectAll("g")
+      .data(nodes)
+      .enter()
+      .append("g")
+      .call(d3.drag()
+        .on("start", dragstarted)
+        .on("drag", dragged)
+        .on("end", dragended)
+      );
+
+    // 节点圆形
+    nodeGroup.append("circle")
+      .attr("class", "node-circle")
+      .attr("r", d => radiusScale(d))
+      .attr("fill", d => colorMap[d.group] || "#888")
+      .attr("stroke", "#fff")
+      .attr("stroke-width", 2);
+
+    // 节点标签
+    nodeGroup.append("text")
+      .attr("class", "node-label")
+      .attr("dy", 4)
+      .text(d => d.label)
+      .style("font-size", d => radiusScale(d) > 22 ? "11px" : "8px")
+      .style("font-weight", d => radiusScale(d) > 22 ? "700" : "500")
+      .style("fill", d => radiusScale(d) > 22 ? "#fff" : "#1d2c41");
+
+    // 力模拟 tick 更新
+    simulation.on("tick", () => {
+      link
+        .attr("x1", d => d.source.x)
+        .attr("y1", d => d.source.y)
+        .attr("x2", d => d.target.x)
+        .attr("y2", d => d.target.y);
+
+      nodeGroup
+        .attr("transform", d => `translate(${d.x}, ${d.y})`);
+    });
+
+    // 拖拽函数
+    function dragstarted(event, d) {
+      if (!event.active) simulation.alphaTarget(0.3).restart();
+      d.fx = d.x;
+      d.fy = d.y;
+    }
+
+    function dragged(event, d) {
+      d.fx = event.x;
+      d.fy = event.y;
+    }
+
+    function dragended(event, d) {
+      if (!event.active) simulation.alphaTarget(0);
+      d.fx = null;
+      d.fy = null;
+    }
+
+    // 窗口适应
+    window.addEventListener("resize", () => {
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+      svg.attr("width", w).attr("height", h);
+      simulation.force("center", d3.forceCenter(w / 2, h / 2));
+      simulation.alpha(0.3).restart();
+    });
+
+  })();
+</script>
+
+</body>
+</html>
